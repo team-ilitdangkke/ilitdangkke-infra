@@ -1,0 +1,58 @@
+FROM ubuntu:20.04
+
+RUN apt-get update -y && apt-get install -y gnupg wget software-properties-common curl
+
+RUN wget -O- https://apt.releases.hashicorp.com/gpg | \
+    gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
+
+RUN gpg --no-default-keyring \
+    --keyring /usr/share/keyrings/hashicorp-archive-keyring.gpg \
+    --fingerprint
+
+RUN echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] \
+    https://apt.releases.hashicorp.com $(lsb_release -cs) main" > \
+    /etc/apt/sources.list.d/hashicorp.list
+    
+RUN apt-get update -y && apt-get install -y terraform unzip vim
+
+# AWS CLI 설치
+RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" && \
+    unzip awscliv2.zip && \
+    ./aws/install -i /usr/local/aws-cli -b /usr/local/bin
+
+
+
+# AWS CLI 구성 및 인증
+RUN mkdir $HOME/.aws
+
+# 환경 변수 설정
+ENV PATH=$PATH:/usr/local/bin
+
+# AWS 구성 파일 작성
+RUN echo "[default]" >> $HOME/.aws/config && \
+    echo "region = ap-northeast-2" >> $HOME/.aws/config
+
+ARG AWS_ACCESS_KEY_ID
+ARG AWS_SECRET_ACCESS_KEY
+
+## ssm plugin install
+RUN curl "https://s3.amazonaws.com/session-manager-downloads/plugin/latest/ubuntu_64bit/session-manager-plugin.deb" -o "session-manager-plugin.deb" && \
+    dpkg -i session-manager-plugin.deb
+
+## install mongosh
+RUN wget -qO- https://www.mongodb.org/static/pgp/server-8.0.asc | tee /etc/apt/trusted.gpg.d/server-8.0.asc
+RUN echo "deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu focal/mongodb-org/8.0 multiverse" | tee /etc/apt/sources.list.d/mongodb-org-8.0.list
+RUN apt-get update
+RUN apt-get install -y mongodb-mongosh
+
+
+
+# AWS CLI 구성 파일에 액세스 키 및 시크릿 액세스 키 추가
+RUN echo "[default]" >> $HOME/.aws/credentials && \
+    echo "aws_access_key_id = ${AWS_ACCESS_KEY_ID}" >> $HOME/.aws/credentials && \
+    echo "aws_secret_access_key = ${AWS_SECRET_ACCESS_KEY}" >> $HOME/.aws/credentials
+
+
+CMD ["bash"]
+
+
